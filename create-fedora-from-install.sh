@@ -1,7 +1,27 @@
 # https://www.golinuxcloud.com/virt-install-examples-kvm-virt-commands-linux/
-# https://fedoramagazine.org/setting-up-a-vm-on-fedora-server-using-cloud-images-and-virt-install-version-3/
+
+# REQUIREMENTS:
+#
+# * $BOOT and $DIR readable by qemu
+# * $DIR writable by the id that runs this command
+# 
+# * $BOOT/Fedora-Server-dvd-x86_64-34-1.2.iso is needed
+#   simply curl'ed
+#
+# CONs
+# need to finish the installation manually
+#
+# POSSIBLE IMPROVEMENTS
+# use kickstart
 
 USAGE="$0 vmname"
+
+# 
+RELEASEVER=34
+SUBRELEASEVER=1.2
+
+BOOT=/var/lib/libvirt/boot
+DIR=/var/lib/os-images
 
 # set in main
 VMNAME="" 
@@ -13,9 +33,10 @@ function check_name() {
 	virsh undefine $VMNAME
     fi
 }
+
 function install() {
-#        --network bridge=nm-bridge
-#        --location=http://fedora-serv.inria.fr/miroirs/fedora/34/Everything/x86_64/iso/Fedora-Everything-netinst-x86_64-34-1.2.iso \
+
+    local iso=Fedora-Server-dvd-x86_64-${RELEASEVER}-${SUBRELEASEVER}.iso
 
     virt-install --name=$VMNAME \
         --graphics=none \
@@ -24,7 +45,7 @@ function install() {
         --disk size=10 \
         --network network=default \
         --os-variant=fedora34 \
-        --location=/var/lib/os-images/Fedora-Server-dvd-x86_64-34-1.2.iso \
+        --location=$BOOT/$iso \
 
 }
 
