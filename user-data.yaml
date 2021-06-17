@@ -1,6 +1,8 @@
 #cloud-config
-password: fed0ra
-chpasswd: { expire: false }
+#password: fed0ra
+#chpasswd: { expire: false }
+
+ssh_pwauth: no
 
 users:
   - default
