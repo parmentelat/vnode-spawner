@@ -12,3 +12,4 @@ users:
 chpasswd:
   list:
     - root:r00t
+  expire: no
