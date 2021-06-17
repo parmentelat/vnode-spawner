@@ -2,10 +2,12 @@
 #password: fed0ra
 #chpasswd: { expire: false }
 
+hostname: vnode00
+fqdn: vnode00.pl.sophia.inria.fr
 ssh_pwauth: no
 
 users:
-  - default
+#  - default
   - name: root
     ssh-authorized-keys:
       - "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDUh0vt15Wgc7CQvgbh7tcisOeAY1odTzsIF3dXsB8aqn+hRmUy2l0C/ELgiETGHtdnkCyVEi8pi6G+kGUFAfJ6HZWURf3eifsg0CrWH1y2A9CRpn3Z5F0jM17jUiBv5CrqPv63CBa+DQN54/mFUcOIN+EspqkHkQOhsP23s1YGLJ04DdX4pfe0nyo5CjAAEXnKn6dNWtGuqRunIdOskspdeq7dTYs/wChyEyiSQnzaOaHs7zbJ/ivdFjDPfMpFhIfrFAZY+q90Ut4LR/9IQL8ZW6OKEeoVftXpGIO6W9oVkMTojBHEl5c64FOgYsFg3wFfemMQ5LZcO/Pd8SkYYOKz Thierry.Parmentelat"

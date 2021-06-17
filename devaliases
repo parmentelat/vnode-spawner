@@ -1,0 +1,8 @@
+NAT=192.168.122.100
+PUB=138.96.112.100  # vnode00
+
+alias comein="ssh $NAT"
+alias cl="khd $NAT"
+alias pnat="ping $NAT"
+
+alias ppub="ping $PUB"

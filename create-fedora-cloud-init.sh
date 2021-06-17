@@ -71,6 +71,7 @@ function install() {
         --ram=4096 \
         --os-variant=fedora${RELEASEVER} \
         --network network=default \
+        --network type=direct,source=eth0,source_mode=bridge,model=virtio,mac=52:54:00:00:00:00 \
 	    --import \
         --disk path=${seed},device=cdrom \
 	    --disk path=${vm_image},format=qcow2 \
