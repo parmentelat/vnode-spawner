@@ -6,10 +6,12 @@
 # * dnf install virt-install (brings virt-install)
 # * dnf install qemu-img     (brings qemu-img)
 # * dnf install cloud-utils  (brings cloud-localds)
+#
+# * pip install jinja2
 # 
 # * /var/lib/os-images readable by qemu
 # 
-# * /var/lib/-images/Fedora-Cloud-Base-34-1.2.x86_64.qcow2 is needed
+# * /var/lib/libvirt/boot/Fedora-Cloud-Base-34-1.2.x86_64.qcow2 is needed
 #   simply curl'ed
 
 
