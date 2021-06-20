@@ -11,21 +11,12 @@
 # * /var/lib/libvirt/boot/Fedora-Cloud-Base-34-1.2.x86_64.qcow2 is needed
 #   simply curl'ed
 
-
-CONFIGS = {
-    'f34': {
-        'image': 'Fedora-Cloud-Base-34-1.2.x86_64.qcow2',
-        'os-variant': 'fedora34',
-        'disk_size': '10G',
-    }
-
-}
-
 import logging
 import sys
 
 from pathlib import Path
 import subprocess as sp
+from dataclasses import dataclass
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -37,8 +28,21 @@ WORK = Path(__file__).parent
 DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
 
-def shell(*args, **kwds):
-    return sp.run(*args, shell=True, **kwds)
+@dataclass
+class Distro:
+    short: str      # e.g. f34
+    variant: str    # e.g. fedora-34  for virt-install
+    image: str      # e.g. Fedora-Cloud-Base-34-1.2.x86_64.qcow2
+    disk_size: str  # e.g. 10G  - the disk size to build
+
+DISTROS = {
+    'f34': Distro('f34', 'fedora34', 'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '10G'),
+#    'u20': Distro('u20', 'ubuntu20' ...
+}
+
+
+def shell(*vargs, **kwds):
+    return sp.run(*vargs, shell=True, **kwds)
 
 
 class CloudImage:
@@ -46,21 +50,18 @@ class CloudImage:
     Image("Fedora-Cloud-Base-34-1.2.x86_64.qcow2",
           "fedora", "34", "1.2")
     """
-    def __init__(self, name, distro, release, subrelease):
-        self.name = name
-        self.distro = distro
-        self.release = release
-        self.subrelease = subrelease
+    def __init__(self, filename):
+        self.filename = filename
 
     def boot(self):
-        path = BOOT / self.name
+        path = BOOT / self.filename
         if not path.exists:
             raise FileNotFoundError(str(path))
         return path
 
     def clone(self, vnode):
-        name = str(vnode)
-        return WORK / f"{name}.qcow2"
+        filename = str(vnode)
+        return WORK / f"{filename}.qcow2"
 
     def create_clone(self, vnode, disk_size):
         boot = self.boot()
@@ -142,10 +143,12 @@ class Vnode:
         )
         return seed
 
-    def install(self, boot: CloudImage):
+    def install(self, distroname):
         self.clear_previous_instance()
         seed = self.create_seed()
-        clone = boot.create_clone(self, DISK_SIZE)
+        distro = DISTROS[distroname]
+        cloud_image = CloudImage(distro.image)
+        clone = cloud_image.create_clone(self, distro.disk_size)
         cp = shell(
             f"virt-install --name={self}"
             f" --graphics=none --console pty,target_type=serial"
@@ -163,15 +166,15 @@ class Vnode:
 
 
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
+    from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument('-d', '--distro', default='f34',
+                        choices=list(DISTROS.keys()),
+                        help="pick your distribution")
     parser.add_argument('ids', nargs='+',
         help="list of vnodes or ids")
     args = parser.parse_args()
-    boot = CloudImage("Fedora-Cloud-Base-34-1.2.x86_64.qcow2",
-          "fedora", "34", "1.2")
+    distroname = args.distro
     for nodeid in args.ids:
         node = Vnode(nodeid)
-        node.install(boot)
-#        print(f"{node=} created network config file"
-#              f"{node.create_config_file('network.yaml')}")
+        node.install(distroname)
