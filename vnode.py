@@ -36,8 +36,10 @@ class Distro:
     disk_size: str  # e.g. 10G  - the disk size to build
 
 DISTROS = {
-    'f34': Distro('f34', 'fedora34', 'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '10G'),
-#    'u20': Distro('u20', 'ubuntu20' ...
+    'f34': Distro('f34', 'fedora34', 'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
+    'f33': Distro('f33', 'fedora33', 'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
+    'u20.04': Distro('u20.04', 'ubuntu20.04', 'focal-server-cloudimg-amd64.img', '6G'),
+    'u18.04': Distro('u18.04', 'ubuntu18.04', 'bionic-server-cloudimg-amd64.img', '6G'),
 }
 
 
@@ -131,7 +133,7 @@ class Vnode:
 
 
     def seed(self):
-        return WORK / f"{self}.config.iso"
+        return self.config_dir / f"{self}.config.iso"
 
     def create_seed(self):
         for yaml in 'meta.yaml', 'user.yaml', 'network.yaml':
