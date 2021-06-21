@@ -25,6 +25,7 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 BOOT = Path("/var/lib/libvirt/boot")
 WORK = Path(__file__).parent
 
+STEM = 'vnode'
 DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
 
@@ -87,7 +88,7 @@ class Vnode:
     Vnode(12, stem='vbox')
     Vnode('vbox12', stem='vbox')
     """
-    def __init__(self, id, *, stem="vnode", width=2):
+    def __init__(self, id, *, stem=STEM, width=2):
         self.stem = stem
         self.width = width
         #
@@ -177,18 +178,46 @@ class Vnode:
             # --debug
         )
 
+HELP = f"""
+provision a fresh node under QEMU; the node is picked among a pool of nodes
+names ranging from {STEM}00 and up
+
+any pre-existing instance is first terminated
+
+one invokation can produce several nodes, each with its separate distro
+
+REQUIREMENTS
+
+a node numbered e.g. 99 will use MAC address 52:54:00:00:00:99;
+as of now, the node names should be known to your DNS+DHCP environment;
+
+EXAMPLE
+
+vnode.py 18:u18.04 20:u20.04 23:f33 24:f34
+or with exact same result
+vnode.py vnode18:u18.04 vnode20:u20.04 vnode23:f33 vnode24:f34
+"""
+
 
 if __name__ == '__main__':
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
-    parser = ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatter)
+    parser = ArgumentParser(usage=HELP,
+    formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('-d', '--distro', default='f34',
                         choices=list(DISTROS.keys()),
                         help="pick your distribution")
     parser.add_argument('ids', nargs='+',
-        help="list of vnodes or ids")
+        help=
+            "list of vnodes or ids; simple ids are prefixed with {STEM};"
+            " the distro can be specified individually"
+            " e.g. vnode00 01 vnode23:f33 24:f34; if not, the -d option applies;")
     args = parser.parse_args()
-    distro = DISTROS[args.distro]
+    distro_def = args.distro
 
     for nodeid in args.ids:
+        if ':' in nodeid:
+            nodeid, distro = nodeid.split(':')
+        else:
+            distro = distro_def
         node = Vnode(nodeid)
-        node.install(distro)
+        node.install(DISTROS[distro])
