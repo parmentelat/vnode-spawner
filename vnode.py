@@ -31,15 +31,20 @@ RAM_SIZE  = '4096'
 @dataclass
 class Distro:
     short: str      # e.g. f34
-    variant: str    # e.g. fedora-34  for virt-install
+    family: str     # fedora or ubuntu
+    os_variant: str # e.g. fedora-34  - for virt-install
     image: str      # e.g. Fedora-Cloud-Base-34-1.2.x86_64.qcow2
     disk_size: str  # e.g. 10G  - the disk size to build
 
 DISTROS = {
-    'f34': Distro('f34', 'fedora34', 'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
-    'f33': Distro('f33', 'fedora33', 'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
-    'u20.04': Distro('u20.04', 'ubuntu20.04', 'focal-server-cloudimg-amd64.img', '6G'),
-    'u18.04': Distro('u18.04', 'ubuntu18.04', 'bionic-server-cloudimg-amd64.img', '6G'),
+    'f34': Distro('f34', 'fedora', 'fedora34',
+                  'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
+    'f33': Distro('f33',  'fedora', 'fedora33',
+                  'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
+    'u20.04': Distro('u20.04', 'ubuntu', 'ubuntu20.04',
+                  'focal-server-cloudimg-amd64.img', '6G'),
+    'u18.04': Distro('u18.04', 'ubuntu', 'ubuntu18.04',
+                  'bionic-server-cloudimg-amd64.img', '6G'),
 }
 
 
@@ -107,19 +112,27 @@ class Vnode:
     def config_file(self, config_name):
         return self.config_dir / f"{self}-{config_name}"
 
-    def create_config_content(self, config_name):
+    def create_config_content(self, config_name, distro):
+        if distro.family == 'fedora':
+            eth0 = 'eth0'
+            eth1 = 'eth1'
+        elif distro.family == 'ubuntu':
+            eth0 = 'enp1s0'
+            eth1 = 'enp2s0'
         vars = dict(
             vnode=repr(self),
             id=self.id,
+            eth0=eth0,
+            eth1=eth1,
         )
         template = self.env.get_template(config_name)
         return template.render(**vars) + "\n"
 
-    def create_config_file(self, config_name):
+    def create_config_file(self, config_name, distro):
         config_file = self.config_file(config_name)
         config_file.parent.mkdir(parents=True, exist_ok=True)
         with config_file.open('w') as writer:
-            writer.write(self.create_config_content(config_name))
+            writer.write(self.create_config_content(config_name, distro))
         return config_file
 
 
@@ -133,11 +146,11 @@ class Vnode:
 
 
     def seed(self):
-        return self.config_dir / f"{self}.config.iso"
+        return self.config_dir / f"{self}-seed.iso"
 
-    def create_seed(self):
+    def create_seed(self, distro):
         for yaml in 'meta.yaml', 'user.yaml', 'network.yaml':
-            self.create_config_file(yaml)
+            self.create_config_file(yaml, distro)
         seed = self.seed()
         cp = shell(
             f"cloud-localds -v --network-config={self.config_file('network.yaml')} "
@@ -145,10 +158,9 @@ class Vnode:
         )
         return seed
 
-    def install(self, distroname):
+    def install(self, distro: Distro):
         self.clear_previous_instance()
-        seed = self.create_seed()
-        distro = DISTROS[distroname]
+        seed = self.create_seed(distro)
         cloud_image = CloudImage(distro.image)
         clone = cloud_image.create_clone(self, distro.disk_size)
         cp = shell(
@@ -161,10 +173,9 @@ class Vnode:
             f" --import"
             f" --disk path={seed},device=cdrom"
             f" --disk path={clone},format=qcow2"
-            f" --os-variant=fedora34"
+            f" --os-variant={distro.os_variant}"
             # --debug
         )
-        pass
 
 
 if __name__ == '__main__':
@@ -176,7 +187,8 @@ if __name__ == '__main__':
     parser.add_argument('ids', nargs='+',
         help="list of vnodes or ids")
     args = parser.parse_args()
-    distroname = args.distro
+    distro = DISTROS[args.distro]
+
     for nodeid in args.ids:
         node = Vnode(nodeid)
-        node.install(distroname)
+        node.install(distro)
