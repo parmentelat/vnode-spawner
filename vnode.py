@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+# pylint: disable=logging-fstring-interpolation
+# pylint: disable=redefined-outer-name
+# pylint: disable=missing-function-docstring
+# pylint: disable=missing-module-docstring
+# pylint: disable=missing-class-docstring
+
+
 # * dnf install virt-install (brings virt-install)
 # * dnf install qemu-img     (brings qemu-img)
 # * dnf install cloud-utils  (brings cloud-localds)
@@ -13,6 +20,8 @@
 
 import logging
 import sys
+
+import asyncio
 
 from pathlib import Path
 import subprocess as sp
@@ -50,13 +59,12 @@ DISTROS = {
 
 
 def shell(*vargs, **kwds):
-    return sp.run(*vargs, shell=True, **kwds)
+    return sp.run(*vargs, shell=True, **kwds)      # pylint: disable=subprocess-run-check
 
 
 class CloudImage:
     """
-    Image("Fedora-Cloud-Base-34-1.2.x86_64.qcow2",
-          "fedora", "34", "1.2")
+    ex. Image("Fedora-Cloud-Base-34-1.2.x86_64.qcow2")
     """
     def __init__(self, filename):
         self.filename = filename
@@ -67,11 +75,11 @@ class CloudImage:
             raise FileNotFoundError(str(path))
         return path
 
-    def clone(self, vnode):
+    def clone(self, vnode: 'Vnode'):
         filename = str(vnode)
-        return WORK / f"{filename}.qcow2"
+        return vnode.disk_dir / f"{filename}.qcow2"
 
-    def create_clone(self, vnode, disk_size):
+    def create_clone(self, vnode: 'Vnode', disk_size: str):
         boot = self.boot()
         clone = self.clone(vnode)
         logging.info(f"Creating snapshot of {boot} into {clone}")
@@ -82,33 +90,50 @@ class CloudImage:
 
 class Vnode:
     """
-    Vnode(10)
-    Vnode('10')
-    Vnode('vnode10')
-    Vnode(12, stem='vbox')
-    Vnode('vbox12', stem='vbox')
+    Vnode(10) -> would use name 'vnode10'
+    Vnode('10') -> vnode10
+    Vnode('vnode10') -> vnode10
+    Vnode(12, stem='vbox') -> vbox12
+    Vnode('vbox12', stem='vbox', width=3) -> vbox012
     """
-    def __init__(self, id, *, stem=STEM, width=2):
+    def __init__(self, id_, *, stem=STEM, width=2):
         self.stem = stem
         self.width = width
         #
-        self._id = int(str(id).replace(self.stem, ""))
+        self._id = int(str(id_).replace(self.stem, ""))
         #
         self.env = Environment(
             loader=PackageLoader("vnode"),
             autoescape = select_autoescape())
 
     @property
-    def id(self):
+    def id(self):                                          # pylint: disable=invalid-name
         return f"{self._id:0{self.width}}"
 
     def __repr__(self):
         return f"{self.stem}{self.id}"
 
+    def _subdir(self, category):
+        result = Path(__file__).parent / category
+        result.mkdir(parents=True, exist_ok=True)
+        return result
+
     @property
     def config_dir(self):
-        return Path(__file__).parent / "configs"
+        return self._subdir("configs")
+    @property
+    def disk_dir(self):
+        return self._subdir("disks")
+    @property
+    def log_dir(self):
+        return self._subdir("logs")
 
+    @property
+    def seed(self):
+        return self.disk_dir / f"{self}-seed.iso"
+    @property
+    def log(self):
+        return self.log_dir / f"{self}.log"
 
     def config_file(self, config_name):
         return self.config_dir / f"{self}-{config_name}"
@@ -120,14 +145,14 @@ class Vnode:
         elif distro.family == 'ubuntu':
             eth0 = 'enp1s0'
             eth1 = 'enp2s0'
-        vars = dict(
+        vars_ = dict(
             vnode=repr(self),
             id=self.id,
             eth0=eth0,
             eth1=eth1,
         )
         template = self.env.get_template(config_name)
-        return template.render(**vars) + "\n"
+        return template.render(**vars_) + "\n"
 
     def create_config_file(self, config_name, distro):
         config_file = self.config_file(config_name)
@@ -138,35 +163,35 @@ class Vnode:
 
 
     def clear_previous_instance(self):
-        cp = shell(f"virsh domid {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-        if cp.returncode == 0:
+        completed = shell(f"virsh domid {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        if completed.returncode == 0:
             logging.info(f"killing {self}")
-            cp = shell(f"virsh destroy {self}")
+            completed = shell(f"virsh destroy {self}")
 
-        cp = shell(f"virsh undefine {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        completed = shell(f"virsh undefine {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
-
-    def seed(self):
-        return self.config_dir / f"{self}-seed.iso"
 
     def create_seed(self, distro):
         for yaml in 'meta.yaml', 'user.yaml', 'network.yaml':
             self.create_config_file(yaml, distro)
-        seed = self.seed()
-        cp = shell(
+        seed = self.seed
+        completed = shell(
             f"cloud-localds -v --network-config={self.config_file('network.yaml')} "
             f"{seed} {self.config_file('user.yaml')} {self.config_file('meta.yaml')}"
         )
+        if completed.returncode != 0:
+            logging.warning("cloud-localds failed")
         return seed
 
-    def install(self, distro: Distro):
+    def virt_install(self, distro: Distro) -> str:
         self.clear_previous_instance()
         seed = self.create_seed(distro)
         cloud_image = CloudImage(distro.image)
         clone = cloud_image.create_clone(self, distro.disk_size)
-        cp = shell(
+        return (
             f"virt-install --name={self}"
             f" --graphics=none --console pty,target_type=serial"
+#            f" --serial file,path={self.log}"
             f" --ram={RAM_SIZE}"
             f" --network network=default"
             f" --network type=direct,source=eth0,source_mode=bridge,model=virtio,"
@@ -177,6 +202,56 @@ class Vnode:
             f" --os-variant={distro.os_variant}"
             # --debug
         )
+
+    def sync_install(self, distro: Distro) -> bool:
+        """
+        works synchroneously and displays output in logs/vnodexx.log
+        """
+        completed = shell(self.virt_install(distro))
+        return completed.returncode == 0
+
+    # async version
+
+    class VirtInstallProtocol(asyncio.SubprocessProtocol):
+        def __init__(self, exit_future, vnode):
+            self.exit_future = exit_future
+            self.vnode = vnode
+            self.path = vnode.log
+            self.path.exists() and self.path.unlink() # pylint: disable=expression-not-assigned
+
+
+        def pipe_data_received(self, fd, data):
+            # print(f"[{fd}]", end='')
+            with self.path.open('ab') as out:
+                out.write(data)
+
+        def process_exited(self):
+            self.exit_future.set_result(True)
+
+    async def async_install(self, distro: Distro) -> bool:
+        """
+        works asynchroneously and redirect output in a file
+        """
+        command = self.virt_install(distro)
+
+        loop = asyncio.get_running_loop()
+
+        exit_future = asyncio.Future(loop=loop)
+
+        transport, _protocol = await loop.subprocess_shell(
+            lambda: Vnode.VirtInstallProtocol(exit_future, self),
+            command,
+            stdin=None)
+
+        # Wait for the subprocess exit using the process_exited()
+        # method of the protocol.
+        future = await exit_future
+
+        # Close the stdout pipe.
+        transport.close()
+
+        print(f"async install done with {future=}")
+
 
 HELP = f"""
 provision a fresh node under QEMU; the node is picked among a pool of nodes
@@ -214,10 +289,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
     distro_def = args.distro
 
+    SYNC = False
+    tasks = []
     for nodeid in args.ids:
         if ':' in nodeid:
-            nodeid, distro = nodeid.split(':')
+            nodeid, distroname = nodeid.split(':')
         else:
-            distro = distro_def
+            distroname = distro_def
         node = Vnode(nodeid)
-        node.install(DISTROS[distro])
+        distro = DISTROS[distroname]
+        if SYNC:
+            node.sync_install(distro)
+        else:
+            tasks.append(node.async_install(distro))
+    if not SYNC:
+        asyncio.run(asyncio.wait(tasks))
