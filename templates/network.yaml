@@ -9,6 +9,8 @@ ethernets:
       addresses: [ 192.168.122.1, 8.8.8.8 ]
 
   {{eth1}}:
+    # this is about the host's public network details
+    # and so it may need to be tweaked accordingly
     dhcp4: yes
     nameservers:
       addresses: [ 138.96.112.1, 138.96.112.2 ]

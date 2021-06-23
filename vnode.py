@@ -11,7 +11,7 @@
 # * dnf install qemu-img     (brings qemu-img)
 # * dnf install cloud-utils  (brings cloud-localds)
 #
-# * pip install jinja2
+# * pip install jinja2 asyncssh
 #
 # * /var/lib/os-images readable by qemu
 #
@@ -21,11 +21,13 @@
 import logging
 import sys
 
-import asyncio
-
 from pathlib import Path
-import subprocess as sp
 from dataclasses import dataclass
+from datetime import datetime as DateTime, timedelta as TimeDelta
+import subprocess as sp
+
+import asyncio
+import asyncssh
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -37,6 +39,7 @@ WORK = Path(__file__).parent
 STEM = 'vnode'
 DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
+SSH_TIMEOUT = 120
 
 @dataclass
 class Distro:
@@ -203,12 +206,12 @@ class Vnode:
             # --debug
         )
 
-    def sync_install(self, distro: Distro) -> bool:
-        """
-        works synchroneously and displays output in logs/vnodexx.log
-        """
-        completed = shell(self.virt_install(distro))
-        return completed.returncode == 0
+    # def sync_install(self, distro: Distro) -> bool:
+    #     """
+    #     works synchroneously and displays output in logs/vnodexx.log
+    #     """
+    #     completed = shell(self.virt_install(distro))
+    #     return completed.returncode == 0
 
     # async version
 
@@ -228,7 +231,7 @@ class Vnode:
         def process_exited(self):
             self.exit_future.set_result(True)
 
-    async def async_install(self, distro: Distro) -> bool:
+    async def a_start_install(self, distro: Distro) -> bool:
         """
         works asynchroneously and redirect output in a file
         """
@@ -242,6 +245,7 @@ class Vnode:
             lambda: Vnode.VirtInstallProtocol(exit_future, self),
             command,
             stdin=None)
+        self.pid = transport._pid
 
         # Wait for the subprocess exit using the process_exited()
         # method of the protocol.
@@ -251,6 +255,33 @@ class Vnode:
         transport.close()
 
         print(f"async install done with {future=}")
+
+    async def a_wait_ssh(self):
+        ip = f"192.168.122.{100+self.id}"
+        command = "cat /etc/os-release"
+        start = DateTime.now()
+        while True:
+            try:
+                if VERBOSE:
+                    print("trying to ssh into {ip}")
+                async with asyncssh.connect(ip) as conn:
+                    result = await conn.run(command, check=True)
+                    print(result.stdout, end='')
+                    return True
+            except (OSError, asyncssh.Error) as exc:
+                pass
+                if DateTime.now() - start >= TimeDelta(seconds=SSH_TIMEOUT):
+                    return False
+
+    async def a_terminate_install(self):
+        return os.kill(self.pid)
+
+    async def async_install(self, distro: Distro) -> bool:
+        return (await self.a_start_install(distro)
+                and self.a_wait_ssh()
+                and self.a_terminate_install())
+
+
 
 
 HELP = f"""
@@ -289,7 +320,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     distro_def = args.distro
 
-    SYNC = False
     tasks = []
     for nodeid in args.ids:
         if ':' in nodeid:
@@ -298,9 +328,5 @@ if __name__ == '__main__':
             distroname = distro_def
         node = Vnode(nodeid)
         distro = DISTROS[distroname]
-        if SYNC:
-            node.sync_install(distro)
-        else:
-            tasks.append(node.async_install(distro))
-    if not SYNC:
-        asyncio.run(asyncio.wait(tasks))
+        tasks.append(node.async_install(distro))
+    asyncio.run(asyncio.wait(tasks))
