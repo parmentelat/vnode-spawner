@@ -40,6 +40,7 @@ STEM = 'vnode'
 DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
 SSH_TIMEOUT = 120
+VERBOSE = True
 
 @dataclass
 class Distro:
@@ -236,6 +237,8 @@ class Vnode:
         works asynchroneously and redirect output in a file
         """
         command = self.virt_install(distro)
+        if VERBOSE:
+            print(command)
 
         loop = asyncio.get_running_loop()
 
