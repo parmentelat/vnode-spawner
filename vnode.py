@@ -36,14 +36,20 @@ logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 #asyncssh.set_log_level(logging.DEBUG if VERBOSE else logging.INFO)
 asyncssh.set_log_level(logging.INFO)
 
+# paths
 BOOT = Path("/var/lib/libvirt/boot")
 WORK = Path(__file__).parent
 
+# names and features
 STEM = 'vnode'
 DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
-SSH_TIMEOUT = 120
-SSH_PERIOD = 5
+
+# times
+IDLE = 30        # wait that many seconds before trying to ssh
+SSH_PERIOD = 5   # how often to retry a ssh
+TIMEOUT = 120    # if a node has not come up after that time, it's deemed KO
+
 VERBOSE = True
 
 @dataclass
@@ -113,6 +119,7 @@ class Vnode:
         self.env = Environment(
             loader=PackageLoader("vnode"),
             autoescape = select_autoescape())
+        self.pid = None
 
     @property
     def id(self):                                          # pylint: disable=invalid-name
@@ -238,6 +245,7 @@ class Vnode:
         def process_exited(self):
             self.exit_future.set_result(True)
 
+
     async def a_start_install(self, distro: Distro) -> bool:
         """
         works asynchroneously and redirect output in a file
@@ -268,19 +276,20 @@ class Vnode:
     async def a_wait_ssh(self):
         ip = f"192.168.122.1{self.id}"
         command = "cat /etc/os-release"
+        await asyncio.sleep(IDLE)
         start = DateTime.now()
         while True:
             try:
                 if VERBOSE:
                     print(f"trying to ssh into {ip}")
-                async with asyncssh.connect(ip) as conn:
+                async with asyncssh.connect(ip, known_hosts=None) as conn:
                     result = await conn.run(command, check=True)
-                    logger.info(f"{self} ssh-OK")
-                    logger.debug(result.stdout)
+                    logging.info(f"{self} ssh-OK")
+                    logging.debug(result.stdout)
                     return True
-            except (OSError, asyncssh.Error) as exc:
+            except (OSError, asyncssh.Error):
                 await asyncio.sleep(SSH_PERIOD)
-                if DateTime.now() - start >= TimeDelta(seconds=SSH_TIMEOUT):
+                if DateTime.now() - start >= TimeDelta(seconds=TIMEOUT):
                     return False
 
     def terminate_a_install(self):
@@ -293,7 +302,7 @@ class Vnode:
             asyncio.create_task(self.a_start_install(distro)),
             asyncio.create_task(self.a_wait_ssh()),
         ]
-        await asyncio.wait(tasks, timeout=SSH_TIMEOUT)
+        await asyncio.wait(tasks, timeout=TIMEOUT)
         # cleanup
         self.terminate_a_install()
 
