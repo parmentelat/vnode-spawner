@@ -18,9 +18,10 @@
 # * /var/lib/libvirt/boot/Fedora-Cloud-Base-34-1.2.x86_64.qcow2 is needed
 #   simply curl'ed
 
-import logging
 import sys
+import os, signal
 
+import logging
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime as DateTime, timedelta as TimeDelta
@@ -32,6 +33,8 @@ import asyncssh
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+#asyncssh.set_log_level(logging.DEBUG if VERBOSE else logging.INFO)
+asyncssh.set_log_level(logging.INFO)
 
 BOOT = Path("/var/lib/libvirt/boot")
 WORK = Path(__file__).parent
@@ -40,6 +43,7 @@ STEM = 'vnode'
 DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
 SSH_TIMEOUT = 120
+SSH_PERIOD = 5
 VERBOSE = True
 
 @dataclass
@@ -169,10 +173,12 @@ class Vnode:
     def clear_previous_instance(self):
         completed = shell(f"virsh domid {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
         if completed.returncode == 0:
-            logging.info(f"killing {self}")
-            completed = shell(f"virsh destroy {self}")
-
-        completed = shell(f"virsh undefine {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+            command = f"virsh destroy {self}"
+            logging.info(f"running {command}")
+            completed = shell(command)
+        command = f"virsh undefine {self}"
+        logging.info(f"running {command}")
+        completed = shell(command, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
 
 
     def create_seed(self, distro):
@@ -260,30 +266,36 @@ class Vnode:
         print(f"async install done with {future=}")
 
     async def a_wait_ssh(self):
-        ip = f"192.168.122.{100+self.id}"
+        ip = f"192.168.122.1{self.id}"
         command = "cat /etc/os-release"
         start = DateTime.now()
         while True:
             try:
                 if VERBOSE:
-                    print("trying to ssh into {ip}")
+                    print(f"trying to ssh into {ip}")
                 async with asyncssh.connect(ip) as conn:
                     result = await conn.run(command, check=True)
-                    print(result.stdout, end='')
+                    logger.info(f"{self} ssh-OK")
+                    logger.debug(result.stdout)
                     return True
             except (OSError, asyncssh.Error) as exc:
-                pass
+                await asyncio.sleep(SSH_PERIOD)
                 if DateTime.now() - start >= TimeDelta(seconds=SSH_TIMEOUT):
                     return False
 
-    async def a_terminate_install(self):
-        return os.kill(self.pid)
+    def terminate_a_install(self):
+        if VERBOSE:
+            print(f'killing libvirt-install {self.pid=}')
+        return os.kill(self.pid, signal.SIGTERM)
 
     async def async_install(self, distro: Distro) -> bool:
-        return (await self.a_start_install(distro)
-                and self.a_wait_ssh()
-                and self.a_terminate_install())
-
+        tasks = [
+            asyncio.create_task(self.a_start_install(distro)),
+            asyncio.create_task(self.a_wait_ssh()),
+        ]
+        await asyncio.wait(tasks, timeout=SSH_TIMEOUT)
+        # cleanup
+        self.terminate_a_install()
 
 
 
