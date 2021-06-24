@@ -198,7 +198,7 @@ class Vnode:
 #            f" --serial file,path={self.log}"
             f" --ram={RAM_SIZE}"
             f" --network network=default"
-            f" --network type=direct,source=eth0,source_mode=bridge,model=virtio,"
+            f" --network type=direct,source=br0,source_mode=bridge,model=virtio,"
                  f"mac=52:54:00:00:00:{self.id}"
             f" --import"
             f" --disk path={seed},device=cdrom"
