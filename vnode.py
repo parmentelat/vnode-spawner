@@ -217,8 +217,9 @@ class Vnode:
             f" --graphics=none --console pty,target_type=serial"
 #            f" --serial file,path={self.log}"
             f" --ram={RAM_SIZE}"
-            f" --network network=default"
-            f" --network type=direct,source=br0,source_mode=bridge,model=virtio,"
+#            f" --network network=default"
+#            f" --network type=direct,source=br0,source_mode=bridge,model=virtio,"
+            f" --network bridge=br0,model=virtio,"
                  f"mac=52:54:00:00:00:{self.id}"
             f" --import"
             f" --disk path={seed},device=cdrom"
@@ -290,6 +291,7 @@ class Vnode:
 
     async def a_wait_ssh(self) -> Pretty:
         ip = f"192.168.122.1{self.id}"
+        ip = str(self)
         command = "cat /etc/os-release"
         logging.debug(f"{self} idling for {IDLE}s")
         await asyncio.sleep(IDLE)
@@ -326,10 +328,10 @@ class Vnode:
                 pass
         for task in pending:
             task.cancel()
-        if len(done) == 1:
-            # it must be t_ssh then
+        try:
             return t_ssh.result()
-        return "DOWN"
+        except:
+            return "DOWN"
 
 
 HELP = f"""
@@ -392,6 +394,7 @@ if __name__ == '__main__':
 
     # reset the terminal; libvirt tends to leave it in very bad shape
     # unfortunately this is a little intrusive
-    shell("reset")
+    if not VERBOSE:
+        shell("reset")
     for node, pretty in zip(nodes, results):
         logging.info(f"\rnode {node} -> {pretty}")
