@@ -16,7 +16,3 @@ nmcli con down $IFACE
 nmcli con add type ethernet ifname eth0 master br0
 # turn on bridge
 nmcli con up $BR
-
-virsh net-define templates/br0-network.xml
-virsh net-start br0-network
-virsh net-autostart br0-network
