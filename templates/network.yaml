@@ -1,16 +1,26 @@
 version: 2
+
 ethernets:
+
+  # this part allows to have foolproof connectivity
+  # esp. in the early stages
+  # xxx if you have several disjoint stems, the current implem
+  # will be too weak, as e.g. vnode00 and vbox00 will use the same
+  # address on this subnet
   {{eth0}}:
-#    dhcp4: true
     dhcp4: false
-    addresses: [ 192.168.122.1{{id}}/24 ]
+    {% if stem == 'vnode' %}
+    addresses: [ 192.168.122.{{100+intid}}/24 ]
+    {% endif %}
     gateway4: 192.168.122.1
     nameservers:
       addresses: [ 192.168.122.1, 8.8.8.8 ]
 
+  # this part is to expose public connectivity
+  # it requires a proper DHCP/DNS config available to the host
+  # xxx test that the nameservers thing can be removed
+  # as it should come with the dhcp settings
   {{eth1}}:
-    # this is about the host's public network details
-    # and so it may need to be tweaked accordingly
     dhcp4: yes
     nameservers:
       addresses: [ 138.96.112.1, 138.96.112.2 ]

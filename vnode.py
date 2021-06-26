@@ -32,10 +32,6 @@ import asyncssh
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
-#asyncssh.set_log_level(logging.DEBUG if VERBOSE else logging.INFO)
-asyncssh.set_log_level(logging.INFO)
-
 # paths
 BOOT = Path("/var/lib/libvirt/boot")
 WORK = Path(__file__).parent
@@ -51,6 +47,15 @@ SSH_PERIOD = 5   # how often to retry a ssh
 TIMEOUT = 120    # if a node has not come up after that time, it's deemed KO
 
 VERBOSE = True
+VERBOSE = False
+
+
+logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+#asyncssh.set_log_level(logging.DEBUG if VERBOSE else logging.INFO)
+asyncssh.set_log_level(logging.INFO) if VERBOSE else logging.ERROR
+
+# fetched as PRETTY_NAME in os-release
+Pretty = str
 
 @dataclass
 class Distro:
@@ -161,8 +166,10 @@ class Vnode:
             eth0 = 'enp1s0'
             eth1 = 'enp2s0'
         vars_ = dict(
+            stem=self.stem,
             vnode=repr(self),
             id=self.id,
+            intid=int(self.id),  # if computations are needed
             eth0=eth0,
             eth1=eth1,
         )
@@ -251,8 +258,7 @@ class Vnode:
         works asynchroneously and redirect output in a file
         """
         command = self.virt_install(distro)
-        if VERBOSE:
-            print(command)
+        logging.debug(f"running {command}")
 
         loop = asyncio.get_running_loop()
 
@@ -266,46 +272,64 @@ class Vnode:
 
         # Wait for the subprocess exit using the process_exited()
         # method of the protocol.
-        future = await exit_future
+        try:
+            future = await exit_future
+        except asyncio.CancelledError as exc:
+            logging.info("virt-install task CANCELLED")
+        finally:
+            # Close the stdout pipe.
+            transport.close()
 
-        # Close the stdout pipe.
-        transport.close()
+    @staticmethod
+    def pretty_name(os_release):
+        tag = "PRETTY_NAME="
+        for line in os_release.split('\n'):
+            if line.startswith(tag):
+                return line[len(tag):]
+        return "UNKNOWN DISTRO"
 
-        print(f"async install done with {future=}")
-
-    async def a_wait_ssh(self):
+    async def a_wait_ssh(self) -> Pretty:
         ip = f"192.168.122.1{self.id}"
         command = "cat /etc/os-release"
+        logging.debug(f"{self} idling for {IDLE}s")
         await asyncio.sleep(IDLE)
-        start = DateTime.now()
         while True:
             try:
-                if VERBOSE:
-                    print(f"trying to ssh into {ip}")
+                # already issued by asyncssh INFO
+                # logging.debug(f"trying to ssh into {ip}")
                 async with asyncssh.connect(ip, known_hosts=None) as conn:
                     result = await conn.run(command, check=True)
-                    logging.info(f"{self} ssh-OK")
-                    logging.debug(result.stdout)
-                    return True
+                    pretty = self.pretty_name(result.stdout)
+                    logging.info(f"{self} ssh-OK - {pretty}")
+                    self.terminate_a_install()
+                    return pretty
             except (OSError, asyncssh.Error):
                 await asyncio.sleep(SSH_PERIOD)
-                if DateTime.now() - start >= TimeDelta(seconds=TIMEOUT):
-                    return False
 
+    # the libvirt process will NEVER finish on its own
     def terminate_a_install(self):
-        if VERBOSE:
-            print(f'killing libvirt-install {self.pid=}')
+        logging.debug(f'killing libvirt-install {self.pid=}')
         return os.kill(self.pid, signal.SIGTERM)
 
-    async def async_install(self, distro: Distro) -> bool:
-        tasks = [
-            asyncio.create_task(self.a_start_install(distro)),
-            asyncio.create_task(self.a_wait_ssh()),
-        ]
-        await asyncio.wait(tasks, timeout=TIMEOUT)
-        # cleanup
-        self.terminate_a_install()
-
+    async def async_install(self, distro: Distro, force) -> Pretty:
+        # xxx implement the force logic
+        t_install = asyncio.create_task(self.a_start_install(distro))
+        t_ssh = asyncio.create_task(self.a_wait_ssh())
+        done, pending = await asyncio.wait(
+            [t_install, t_ssh], timeout=TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
+        # as the install never finishes, here we have either
+        # done == [t_ssh] : all is fine
+        # done == [] : oops
+        for task in done:
+            # read the exception
+            if task.exception():
+                pass
+        for task in pending:
+            task.cancel()
+        if len(done) == 1:
+            # it must be t_ssh then
+            return t_ssh.result()
+        return "DOWN"
 
 
 HELP = f"""
@@ -336,6 +360,10 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--distro', default='f34',
                         choices=list(DISTROS.keys()),
                         help="pick your distribution")
+    parser.add_argument('-f', '--force', default=False, action='store_true',
+                        help="already running VM's are not touched, unless"
+                            "this option is given, in which case they are"
+                            "destroyed and undefined before being re-created")
     parser.add_argument('ids', nargs='+',
         help=
             "list of vnodes or ids; simple ids are prefixed with {STEM};"
@@ -344,13 +372,26 @@ if __name__ == '__main__':
     args = parser.parse_args()
     distro_def = args.distro
 
-    tasks = []
+    nodes = []
+    coros = []
     for nodeid in args.ids:
         if ':' in nodeid:
             nodeid, distroname = nodeid.split(':')
         else:
             distroname = distro_def
-        node = Vnode(nodeid)
+        nodes.append(node := Vnode(nodeid))
         distro = DISTROS[distroname]
-        tasks.append(node.async_install(distro))
-    asyncio.run(asyncio.wait(tasks))
+        coros.append(node.async_install(distro, args.force))
+    # somehow we can't do just
+    # asyncio.run(asyncio.gather(*coros))
+    async def bundle():
+        results = await asyncio.gather(*coros)
+        return results
+    results = asyncio.run(bundle())
+    logging.info(results)
+
+    # reset the terminal; libvirt tends to leave it in very bad shape
+    # unfortunately this is a little intrusive
+    shell("reset")
+    for node, pretty in zip(nodes, results):
+        logging.info(f"\rnode {node} -> {pretty}")
