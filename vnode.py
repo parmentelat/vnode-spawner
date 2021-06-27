@@ -7,25 +7,17 @@
 # pylint: disable=missing-class-docstring
 
 
-# * dnf install virt-install (brings virt-install)
-# * dnf install qemu-img     (brings qemu-img)
-# * dnf install cloud-utils  (brings cloud-localds)
-#
-# * pip install jinja2 asyncssh
-#
-# * /var/lib/os-images readable by qemu
-#
-# * /var/lib/libvirt/boot/Fedora-Cloud-Base-34-1.2.x86_64.qcow2 is needed
-#   simply curl'ed
+# see README.md
+
+import logging
 
 import sys
 import os, signal
-
-import logging
-from pathlib import Path
-from dataclasses import dataclass
 from datetime import datetime as DateTime, timedelta as TimeDelta
 import subprocess as sp
+
+from pathlib import Path
+from dataclasses import dataclass
 
 import asyncio
 import asyncssh
@@ -34,6 +26,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 # paths
 BOOT = Path("/var/lib/libvirt/boot")
+# xxx probably not quite right
 WORK = Path(__file__).parent
 
 # names and features
@@ -215,10 +208,7 @@ class Vnode:
         return (
             f"virt-install --name={self}"
             f" --graphics=none --console pty,target_type=serial"
-#            f" --serial file,path={self.log}"
             f" --ram={RAM_SIZE}"
-#            f" --network network=default"
-#            f" --network type=direct,source=br0,source_mode=bridge,model=virtio,"
             f" --network bridge=br0,model=virtio,"
                  f"mac=52:54:00:00:00:{self.id}"
             f" --import"
@@ -228,16 +218,15 @@ class Vnode:
             # --debug
         )
 
-    # def sync_install(self, distro: Distro) -> bool:
-    #     """
-    #     works synchroneously and displays output in logs/vnodexx.log
-    #     """
-    #     completed = shell(self.virt_install(distro))
-    #     return completed.returncode == 0
-
-    # async version
 
     class VirtInstallProtocol(asyncio.SubprocessProtocol):
+        """
+        The point is is to have the output of virt-install
+        logged while the process flows, because
+        1. the process won't end up well - it gets killed once
+          we have ssh connectivity
+        2. it's useful to be able to monitor things on the go
+        """
         def __init__(self, exit_future, vnode):
             self.exit_future = exit_future
             self.vnode = vnode
@@ -355,7 +344,7 @@ vnode.py vnode18:u18.04 vnode20:u20.04 vnode23:f33 vnode24:f34
 """
 
 
-if __name__ == '__main__':
+def main():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(usage=HELP,
     formatter_class=ArgumentDefaultsHelpFormatter)
@@ -364,14 +353,18 @@ if __name__ == '__main__':
                         help="pick your distribution")
     parser.add_argument('-f', '--force', default=False, action='store_true',
                         help="already running VM's are not touched, unless"
-                            "this option is given, in which case they are"
-                            "destroyed and undefined before being re-created")
+                             " this option is given, in which case they are"
+                             " destroyed and undefined before being re-created")
+    parser.add_argument('-v', '--verbose', default=False, action='store_true')
     parser.add_argument('ids', nargs='+',
         help=
-            "list of vnodes or ids; simple ids are prefixed with {STEM};"
-            " the distro can be specified individually"
-            " e.g. vnode00 01 vnode23:f33 24:f34; if not, the -d option applies;")
+            f"list of vnodes or ids; simple ids are prefixed with {STEM};"
+            f" the distro can be specified individually"
+            f" e.g. vnode00 01 vnode23:f33 24:f34; if not, the -d option applies;")
     args = parser.parse_args()
+    if args.verbose:
+        global VERBOSE
+        VERBOSE = True
     distro_def = args.distro
 
     nodes = []
@@ -398,3 +391,6 @@ if __name__ == '__main__':
         shell("reset")
     for node, pretty in zip(nodes, results):
         logging.info(f"\rnode {node} -> {pretty}")
+
+if __name__ == '__main__':
+    main()

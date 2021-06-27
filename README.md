@@ -14,6 +14,31 @@ and not network; firewall and not iptables; ...)
 * guests running last and one-but-last releases of Fedora and Ubuntu LTS
 * parallel installations
 
+### uids
+
+tested within the mental model that there are only 2 users involved
+
+* `root` does most of the heavy lifting; notably it triggers `vnode.py`
+* `qemu` is the uid under which runs the qemu hypervisor
+
+### prerequisites
+
+```
+dnf install virt-install       # brings virt-install
+dnf install qemu-img           # brings qemu-img
+dnf install cloud-utils        # brings cloud-localds
+
+pip install jinja2 asyncssh
+```
+
+Also te source code must be deployed in a location where te `qemu` uid as read access (so e.g. not under `/root`)
+
+### images
+
+images - as published by upstream distros - are expected to be pre-fetched
+in `/var/lib/libvirt/boot`; root can run `images/fetch-images` to perform the actual download
+
+
 ## usage
 
 basically you would invoke this tool with e.g.
