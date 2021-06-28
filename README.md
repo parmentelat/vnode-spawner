@@ -95,7 +95,7 @@ the same originating MAC address...
 
 so one way forward is to create a local bridge `br0` and attach `eth0` to that bridge
 
-the one-time configuration can be done by running the `first-time-create-br0.sh` script
+the one-time configuration can be done by running the `install/create-bridge.sh` script
 
 **please be patient** because this involves `NetworkManager` and `nmcli`, and it takes
 some tens of seconds to settle, and during that time the host remains unreachable from he

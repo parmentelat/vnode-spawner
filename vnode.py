@@ -209,7 +209,7 @@ class Vnode:
             f"virt-install --name={self}"
             f" --graphics=none --console pty,target_type=serial"
             f" --ram={RAM_SIZE}"
-            f" --network bridge=br0,model=virtio,"
+            f" --network bridge=br0,model=virtio,target=tun{self},"
                  f"mac=52:54:00:00:00:{self.id}"
             f" --import"
             f" --disk path={seed},device=cdrom"
