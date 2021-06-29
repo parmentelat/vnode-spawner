@@ -243,6 +243,25 @@ class Vnode:
             self.exit_future.set_result(True)
 
 
+    def check_or_clean(self, force):
+        """
+        check the node does not exist yet, or destroy/undefine it if force is set
+
+        return bool that says it is safe to proceed
+        """
+        completed = shell(f"virsh dumpxml {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        if completed.returncode != 0:
+            # domain does not exist
+            return True
+        if not force:
+            logging.info(f"domain {self} already exists")
+            return False
+        # needs cleanup
+        stop = shell(f"virsh destroy {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        stop = shell(f"virsh undefine {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        return True
+
+
     async def a_start_install(self, distro: Distro) -> bool:
         """
         works asynchroneously and redirect output in a file
@@ -303,7 +322,8 @@ class Vnode:
         return os.kill(self.pid, signal.SIGTERM)
 
     async def async_install(self, distro: Distro, force) -> Pretty:
-        # xxx implement the force logic
+        if not self.check_or_clean(force):
+            return "ALREADY RUNNING"
         t_install = asyncio.create_task(self.a_start_install(distro))
         t_ssh = asyncio.create_task(self.a_wait_ssh())
         done, pending = await asyncio.wait(
