@@ -101,12 +101,32 @@ the one-time configuration can be done by running the `install/create-bridge.sh`
 some tens of seconds to settle, and during that time the host remains unreachable from he
 outside, of course
 
-### todo
+## caveats
 
-* it could make sense to run that script automatically if `br0` is not defined
-* **security**: for now, for the dhcp traffic to go through the bridge,
-  we bypass netfilter, which of course is quite wrong; need to better learn firewall-cmd
-* **security** again: optionnall assign a constant ssh key to the nodes; right now we just
-  ignore the host key when asserting onelineness (which is fine) but as a result we keep
-  on wiping them from known_hosts afterwards, and thats unconvenient and dangerous; for
-  test deployments a fixed well-known key would be **much** better imo
+quite a few :
+
+### console and outputs
+
+* we want to redirect the console output on the fly; virt-install does not seem to let us
+  do that without messing with the terminal; so at the end the code calls the `reset`
+  shell command to ensure the terminal is functional again; this however clears the
+  screen.
+
+### filtering
+
+* right now we turn off filtering by all bridges in the node using sysctl
+  ```
+  net.bridge.bridge-nf-call-iptables=0
+  net.bridge.bridge-nf-call-arptables=0
+  ```
+  the latter is no worry as ebtables are empty by default; but the former is obviously
+  totally wrong, as ***ALL OUR TRAFFIC*** goes through `br0`; so I take it it effectively
+  bypasses firewall rules altogether in this mode.
+
+
+### miscell
+
+* it could make sense to run `create-bridge.sh` script automatically if `br0`
+  is not defined; sounds scary though
+* **security** again: right now we assign a constant ssh key to all nodes
+  it helps with dealing with known_hosts, could become less coarse at some point
