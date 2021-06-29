@@ -177,17 +177,6 @@ class Vnode:
         return config_file
 
 
-    def clear_previous_instance(self):
-        completed = shell(f"virsh domid {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-        if completed.returncode == 0:
-            command = f"virsh destroy {self}"
-            logging.info(f"running {command}")
-            completed = shell(command)
-        command = f"virsh undefine {self}"
-        logging.info(f"running {command}")
-        completed = shell(command, stdout=sp.DEVNULL, stderr=sp.DEVNULL)
-
-
     def create_seed(self, distro):
         for yaml in 'meta.yaml', 'user.yaml', 'network.yaml':
             self.create_config_file(yaml, distro)
@@ -201,7 +190,6 @@ class Vnode:
         return seed
 
     def virt_install(self, distro: Distro) -> str:
-        self.clear_previous_instance()
         seed = self.create_seed(distro)
         cloud_image = CloudImage(distro.image)
         clone = cloud_image.create_clone(self, distro.disk_size)
@@ -249,7 +237,7 @@ class Vnode:
 
         return bool that says it is safe to proceed
         """
-        completed = shell(f"virsh dumpxml {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+        completed = shell(f"virsh domid {self}", stdout=sp.DEVNULL, stderr=sp.DEVNULL)
         if completed.returncode != 0:
             # domain does not exist
             return True
