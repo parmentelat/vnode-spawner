@@ -6,6 +6,31 @@
 # pylint: disable=missing-module-docstring
 # pylint: disable=missing-class-docstring
 
+from dataclasses import dataclass
+
+@dataclass
+class Distro:
+    short: str      # e.g. f34
+    family: str     # fedora or ubuntu
+    os_variant: str # e.g. fedora-34  - for virt-install
+    image: str      # e.g. Fedora-Cloud-Base-34-1.2.x86_64.qcow2
+    disk_size: str  # e.g. 10G  - the disk size to build
+
+
+
+DISTROS = {
+    'f34': Distro('f34', 'fedora', 'fedora34',
+                  'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
+    'f33': Distro('f33',  'fedora', 'fedora33',
+                  'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
+# can't use osvariant=ubuntu21.04 on f33 nor f34
+    'u21.04': Distro('u21.04', 'ubuntu', 'ubuntu20.10', # should be 'ubuntu21.04'
+                  'hirsute-server-cloudimg-amd64.img', '6G'),
+    'u20.04': Distro('u20.04', 'ubuntu', 'ubuntu20.04',
+                  'focal-server-cloudimg-amd64.img', '6G'),
+    'u18.04': Distro('u18.04', 'ubuntu', 'ubuntu18.04',
+                  'bionic-server-cloudimg-amd64.img', '6G'),
+}
 
 # see README.md
 
@@ -17,7 +42,6 @@ from datetime import datetime as DateTime, timedelta as TimeDelta
 import subprocess as sp
 
 from pathlib import Path
-from dataclasses import dataclass
 
 import asyncio
 import asyncssh
@@ -49,26 +73,6 @@ asyncssh.set_log_level(logging.INFO) if VERBOSE else logging.ERROR
 
 # fetched as PRETTY_NAME in os-release
 Pretty = str
-
-@dataclass
-class Distro:
-    short: str      # e.g. f34
-    family: str     # fedora or ubuntu
-    os_variant: str # e.g. fedora-34  - for virt-install
-    image: str      # e.g. Fedora-Cloud-Base-34-1.2.x86_64.qcow2
-    disk_size: str  # e.g. 10G  - the disk size to build
-
-DISTROS = {
-    'f34': Distro('f34', 'fedora', 'fedora34',
-                  'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
-    'f33': Distro('f33',  'fedora', 'fedora33',
-                  'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
-    'u20.04': Distro('u20.04', 'ubuntu', 'ubuntu20.04',
-                  'focal-server-cloudimg-amd64.img', '6G'),
-    'u18.04': Distro('u18.04', 'ubuntu', 'ubuntu18.04',
-                  'bionic-server-cloudimg-amd64.img', '6G'),
-}
-
 
 def shell(*vargs, **kwds):
     return sp.run(*vargs, shell=True, **kwds)      # pylint: disable=subprocess-run-check
