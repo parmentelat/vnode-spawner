@@ -4,8 +4,8 @@ A tool to kick-off fresh VMs under virsh/qemu; typically you would arrange for a
 
 Installations are done in parallel; the tool waits for all nodes to be ssh-reachable - or a 2 minute timeout expires
 
-Each node ends up with one **public** in the public address space;
-this is assumed to externally configured by DHCP, based on MAC addresses, see below
+Each node ends up with one **public** IP in the public address space;
+this is assumed to be externally configured by DHCP, based on MAC addresses, see below
 
 ## target
 
@@ -57,7 +57,7 @@ explanation:
 
 * as you can see you can specify just a number or a full name; numbering is normalized
 * the default is the latest fedora
-* the command runs all installation in parallel, and returns once all the nodes are reachable through ssh
+* the command runs all installations in parallel, and returns once all the nodes are reachable through ssh
 
 ## naming
 
@@ -75,9 +75,9 @@ we want
 
 ### dhcp/dns
 
-the guest names are supposed to be defined in the DNS/DHCP space, which gives you all
-flexibility to define addresses, masks, gateways and dns servers information (as opposed to
-having to mess with the network template)
+the guest names are supposed to be defined in the DNS/DHCP space, which gives
+you all flexibility to define addresses, masks, gateways and dns servers
+information (as opposed to having to mess with the network template)
 
 for now the MAC address is hard-wired in the Python module as being 52:54:00:00:00:nn
 
@@ -97,9 +97,9 @@ so one way forward is to create a local bridge `br0` and attach `eth0` to that b
 
 the one-time configuration can be done by running the `install/create-bridge.sh` script
 
-**please be patient** because this involves `NetworkManager` and `nmcli`, and it takes
-some tens of seconds to settle, and during that time the host remains unreachable from he
-outside, of course
+**please be patient** because this involves `NetworkManager` and `nmcli`, and it
+takes some tens of seconds to settle, and during that time the host remains
+unreachable from he outside, of course
 
 ## caveats
 
@@ -126,7 +126,11 @@ quite a few :
 
 ### miscell
 
-* it could make sense to run `create-bridge.sh` script automatically if `br0`
-  is not defined; sounds scary though
-* **security** again: right now we assign a constant ssh key to all nodes
-  it helps with dealing with known_hosts, could become less coarse at some point
+* it could make sense to run that script automatically if `br0` is not defined
+* **security**: for now, for the dhcp traffic to go through the bridge,
+  we bypass netfilter, which of course is quite wrong; need to better learn firewall-cmd
+* **security** again: optionnally assign a constant ssh key to the nodes; right
+  now we just ignore the host key when asserting onelineness (which is fine) but
+  as a result we keep on wiping them from known_hosts afterwards, and thats
+  unconvenient and dangerous; for test deployments a fixed well-known key would
+  be **much** better
