@@ -36,7 +36,7 @@ Also te source code must be deployed in a location where te `qemu` uid as read a
 ### images
 
 images - as published by upstream distros - are expected to be pre-fetched
-in `/var/lib/libvirt/boot`; root can run `images/fetch-images` to perform the actual download
+in `/var/lib/libvirt/boot`; root can run `(cd images; fetch-images)` to perform the actual download
 
 
 ## usage
