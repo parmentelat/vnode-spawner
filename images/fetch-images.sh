@@ -30,6 +30,6 @@ for url in *.url; do
       continue
   fi
   echo fetching $(cat $url)
-  curl -o $boot $(cat $url)
+  curl -L -o $boot $(cat $url)
   ls -l $boot
 done
