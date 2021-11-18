@@ -16,15 +16,27 @@ class Distro:
     image: str      # e.g. Fedora-Cloud-Base-34-1.2.x86_64.qcow2
     disk_size: str  # e.g. 10G  - the disk size to build
 
+###
+# xxx kube setup on f35 and u21.10 not yet fully working
+DEFAULT_DISTRO = 'f34'
 
+# new distros:
+# to get a list of supported os-variants:
+# dnf update
+# osinfo-query os
 
 DISTROS = {
+    'f35': Distro('f35', 'fedora', 'fedora34',          # fedora35 not available 11/21
+                  'Fedora-Cloud-Base-35-1.2.x86_64.qcow2', '6G'),
     'f34': Distro('f34', 'fedora', 'fedora34',
                   'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
+    'f34-bis': Distro('f34', 'fedora', 'fedora34',
+                  'f34-bis.qcow2', '6G'),
     'f33': Distro('f33',  'fedora', 'fedora33',
                   'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
-# can't use osvariant=ubuntu21.04 on f33 nor f34
-    'u21.04': Distro('u21.04', 'ubuntu', 'ubuntu20.10', # should be 'ubuntu21.04'
+    'u21.10': Distro('u21.10', 'ubuntu', 'ubuntu20.10', # ubuntu21/10 not available 11/21
+                  'impish-server-cloudimg-amd64.img', '6G'),
+    'u21.04': Distro('u21.04', 'ubuntu', 'ubuntu20.10', # ubuntu21.04 not available 11/21
                   'hirsute-server-cloudimg-amd64.img', '6G'),
     'u20.04': Distro('u20.04', 'ubuntu', 'ubuntu20.04',
                   'focal-server-cloudimg-amd64.img', '6G'),
@@ -360,7 +372,7 @@ def main():
     from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
     parser = ArgumentParser(usage=HELP,
     formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-d', '--distro', default='f34',
+    parser.add_argument('-d', '--distro', default=DEFAULT_DISTRO,
                         choices=list(DISTROS.keys()),
                         help="pick your distribution")
     parser.add_argument('-f', '--force', default=False, action='store_true',
