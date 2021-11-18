@@ -7,7 +7,11 @@
 
 USAGE="$0 [-f]"
 
-BOOT=/var/lib/libvirt/boot
+DIRNAME=$(dirname $0)
+cd $DIRNAME
+
+BOOT=../boot
+
 FORCE=""
 
 while getopts "fh" option; do

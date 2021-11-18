@@ -60,10 +60,11 @@ import asyncssh
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+WORKROOT = Path(__file__).parent
+
 # paths
-BOOT = Path("/var/lib/libvirt/boot")
+BOOT = WORKROOT / "boot"
 # xxx probably not quite right
-WORK = Path(__file__).parent
 
 # names and features
 STEM = 'vnode'
@@ -143,7 +144,7 @@ class Vnode:
         return f"{self.stem}{self.id}"
 
     def _subdir(self, category):
-        result = Path(__file__).parent / category
+        result = WORKROOT / category
         result.mkdir(parents=True, exist_ok=True)
         return result
 
