@@ -10,7 +10,8 @@ USAGE="$0 [-f]"
 DIRNAME=$(dirname $0)
 cd $DIRNAME
 
-BOOT=../boot
+IMAGES=./images
+BOOT=./boot
 
 FORCE=""
 
@@ -23,10 +24,12 @@ while getopts "fh" option; do
 done
 shift $OPTIND
 
-for url in *.url; do
+mkdir -p $BOOT
+
+for url in $IMAGES/*.url; do
   stem=$(basename $url .url)
-  boot=$BOOT/$stem
-  if [ -f $boot -a -n "$FORCE" ]; then
+  boot=$BOOT/${stem}.qcow2
+  if [ -f "$boot" -a -n "$FORCE" ]; then
       echo "Force mode: removing old $boot"
       rm $boot
   elif [ -f $boot ]; then

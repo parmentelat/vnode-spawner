@@ -13,8 +13,10 @@ class Distro:
     short: str      # e.g. f34
     family: str     # fedora or ubuntu
     os_variant: str # e.g. fedora-34  - for virt-install
-    image: str      # e.g. Fedora-Cloud-Base-34-1.2.x86_64.qcow2
     disk_size: str  # e.g. 10G  - the disk size to build
+
+    def image(self):
+        return f"{self.short}.qcow2"
 
 ###
 # xxx kube setup on f35 and u21.10 not yet fully working
@@ -26,22 +28,13 @@ DEFAULT_DISTRO = 'f34'
 # osinfo-query os
 
 DISTROS = {
-    'f35': Distro('f35', 'fedora', 'fedora34',          # fedora35 not available 11/21
-                  'Fedora-Cloud-Base-35-1.2.x86_64.qcow2', '6G'),
-    'f34': Distro('f34', 'fedora', 'fedora34',
-                  'Fedora-Cloud-Base-34-1.2.x86_64.qcow2', '6G'),
-    'f34-bis': Distro('f34', 'fedora', 'fedora34',
-                  'f34-bis.qcow2', '6G'),
-    'f33': Distro('f33',  'fedora', 'fedora33',
-                  'Fedora-Cloud-Base-33-1.2.x86_64.qcow2', '6G'),
-    'u21.10': Distro('u21.10', 'ubuntu', 'ubuntu20.10', # ubuntu21/10 not available 11/21
-                  'impish-server-cloudimg-amd64.img', '6G'),
-    'u21.04': Distro('u21.04', 'ubuntu', 'ubuntu20.10', # ubuntu21.04 not available 11/21
-                  'hirsute-server-cloudimg-amd64.img', '6G'),
-    'u20.04': Distro('u20.04', 'ubuntu', 'ubuntu20.04',
-                  'focal-server-cloudimg-amd64.img', '6G'),
-    'u18.04': Distro('u18.04', 'ubuntu', 'ubuntu18.04',
-                  'bionic-server-cloudimg-amd64.img', '6G'),
+    'f35': Distro('f35', 'fedora', 'fedora34', '6G'),          # fedora35 not available 11/21
+    'f34': Distro('f34', 'fedora', 'fedora34', '6G'),
+    'f33': Distro('f33',  'fedora', 'fedora33', '6G'),
+    'u21.10': Distro('u21.10', 'ubuntu', 'ubuntu20.10', '6G'), # ubuntu21/10 not available 11/21
+    'u21.04': Distro('u21.04', 'ubuntu', 'ubuntu20.10', '6G'), # ubuntu21.04 not available 11/21
+    'u20.04': Distro('u20.04', 'ubuntu', 'ubuntu20.04', '6G'),
+    'u18.04': Distro('u18.04', 'ubuntu', 'ubuntu18.04', '6G'),
 }
 
 # see README.md
@@ -208,7 +201,7 @@ class Vnode:
 
     def virt_install(self, distro: Distro) -> str:
         seed = self.create_seed(distro)
-        cloud_image = CloudImage(distro.image)
+        cloud_image = CloudImage(distro.image())
         clone = cloud_image.create_clone(self, distro.disk_size)
         return (
             f"virt-install --name={self}"
