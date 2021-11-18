@@ -15,8 +15,10 @@ class Distro:
     os_variant: str # e.g. fedora-34  - for virt-install
     disk_size: str  # e.g. 10G  - the disk size to build
 
-    def image(self):
-        return f"{self.short}.qcow2"
+    def image(self, alternative=None):
+        return (f"{self.short}-{alternative}.qcow2"
+                if alternative
+                else f"{self.short}.qcow2")
 
 ###
 # xxx kube setup on f35 and u21.10 not yet fully working
@@ -43,7 +45,6 @@ import logging
 
 import sys
 import os, signal
-from datetime import datetime as DateTime, timedelta as TimeDelta
 import subprocess as sp
 
 from pathlib import Path
@@ -86,7 +87,7 @@ def shell(*vargs, **kwds):
 
 class CloudImage:
     """
-    ex. Image("Fedora-Cloud-Base-34-1.2.x86_64.qcow2")
+    ex. Image("f34.qcow2")
     """
     def __init__(self, filename):
         self.filename = filename
@@ -199,9 +200,9 @@ class Vnode:
             logging.warning("cloud-localds failed")
         return seed
 
-    def virt_install(self, distro: Distro) -> str:
+    def virt_install(self, distro: Distro, alternative=None) -> str:
         seed = self.create_seed(distro)
-        cloud_image = CloudImage(distro.image())
+        cloud_image = CloudImage(distro.image(alternative))
         clone = cloud_image.create_clone(self, distro.disk_size)
         return (
             f"virt-install --name={self}"
@@ -260,11 +261,11 @@ class Vnode:
         return True
 
 
-    async def a_start_install(self, distro: Distro) -> bool:
+    async def a_start_install(self, distro: Distro, alternative=None) -> bool:
         """
         works asynchroneously and redirect output in a file
         """
-        command = self.virt_install(distro)
+        command = self.virt_install(distro, alternative)
         logging.debug(f"running {command}")
 
         loop = asyncio.get_running_loop()
@@ -319,10 +320,10 @@ class Vnode:
         logging.debug(f'killing libvirt-install {self.pid=}')
         return os.kill(self.pid, signal.SIGTERM)
 
-    async def async_install(self, distro: Distro, force) -> Pretty:
+    async def async_install(self, distro: Distro, force, alternative=None) -> Pretty:
         if not self.check_or_clean(force):
             return "ALREADY RUNNING"
-        t_install = asyncio.create_task(self.a_start_install(distro))
+        t_install = asyncio.create_task(self.a_start_install(distro, alternative))
         t_ssh = asyncio.create_task(self.a_wait_ssh())
         done, pending = await asyncio.wait(
             [t_install, t_ssh], timeout=TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
@@ -359,6 +360,19 @@ EXAMPLE
 vnode.py 18:u18.04 20:u20.04 23:f33 24:f34
 or with exact same result
 vnode.py vnode18:u18.04 vnode20:u20.04 vnode23:f33 vnode24:f34
+
+ALTERNATIVES
+
+using alternative-image.sh it is easy to produce and use an image
+that is based on the upstream image
+
+EXAMPLE
+
+alternative-image.sh f34 k8s vnode30 -- -s ~/kube-install.sh install install-extras install-helm
+  will use vnode30 (must be free) to produce image f34-k8s
+  it uses apssh to run stuff inside the node, hence the -s option
+vnode.py -d f34-k8s 0 1 2 3
+  will spawn four nodes based on that alternative image
 """
 
 
@@ -367,7 +381,7 @@ def main():
     parser = ArgumentParser(usage=HELP,
     formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('-d', '--distro', default=DEFAULT_DISTRO,
-                        choices=list(DISTROS.keys()),
+                        #choices=list(DISTROS.keys()),
                         help="pick your distribution")
     parser.add_argument('-f', '--force', default=False, action='store_true',
                         help="already running VM's are not touched, unless"
@@ -393,8 +407,12 @@ def main():
         else:
             distroname = distro_def
         nodes.append(node := Vnode(nodeid))
+        alternative = None
+        s = distroname.split('-', 1)
+        if len(s) == 2:
+            distroname, alternative = s
         distro = DISTROS[distroname]
-        coros.append(node.async_install(distro, args.force))
+        coros.append(node.async_install(distro, args.force, alternative))
     # somehow we can't do just
     # asyncio.run(asyncio.gather(*coros))
     async def bundle():

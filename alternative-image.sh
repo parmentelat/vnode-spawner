@@ -35,7 +35,7 @@ function main() {
     local custom="$BOOT/${distro}-${alternative}.qcow2"
 
     echo "STEP 1: creating vnode $VNODE"
-    ../vnode.py -d $distro $vnode
+    vnode.py -d $distro $vnode
 
     echo "STEP 2: running script"
     apssh -t $vnode "$@"
