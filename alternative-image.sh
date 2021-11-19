@@ -37,7 +37,7 @@ function main() {
     echo "STEP 1: creating vnode $VNODE"
     vnode.py -d $distro $vnode
 
-    echo "STEP 2: running script"
+    echo "STEP 2: running script" apssh -t $vnode "$@"
     apssh -t $vnode "$@"
 
     echo "STEP 3: stopping node $vnode"
