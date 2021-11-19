@@ -1,5 +1,11 @@
 BR=br0
-IFACE=eth0
+IFACE=eno1
+
+ip link sh $IFACE > /dev/null 2>&1 || {
+    echo IFACE=$IFACE: no such interface - aborting
+    exit 1
+}
+
 
 # fetch the ethernet's MAC
 read MAC </sys/class/net/$IFACE/address
