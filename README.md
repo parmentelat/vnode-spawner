@@ -1,4 +1,21 @@
-# purpose
+
+
+- [target](#target)
+- [prerequisites](#prerequisites)
+  - [networking](#networking)
+  - [packages](#packages)
+- [images](#images)
+  - [alternative images](#alternative-images)
+- [usage](#usage)
+- [naming](#naming)
+- [networking](#networking-1)
+  - [dhcp/dns](#dhcpdns)
+  - [first simplest idea](#first-simplest-idea)
+  - [hence the bridge](#hence-the-bridge)
+- [caveats](#caveats)
+  - [console and outputs](#console-and-outputs)
+  - [filtering](#filtering)
+  - [miscell](#miscell)
 
 A tool to kick-off fresh VMs under virsh/qemu; typically you would arrange for a pool of names (e.g. `vnode00` .. `vnode30`)
 
@@ -14,30 +31,48 @@ and not network; firewall and not iptables; ...)
 * guests running last and one-but-last releases of Fedora and Ubuntu LTS
 * parallel installations
 
-### uids
+## prerequisites
 
-tested within the mental model that there are only 2 users involved
+### networking 
 
-* `root` does most of the heavy lifting; notably it triggers `vnode.py`
-* `qemu` is the uid under which runs the qemu hypervisor
+see below the section on creating a bridge
 
-### prerequisites
+### packages
 
 ```
-dnf install virt-install       # brings virt-install
-dnf install qemu-img           # brings qemu-img
-dnf install cloud-utils        # brings cloud-localds
+dnf -y install libvirt
+dnf -y install qemu-kvm
+dnf -y install virt-install       # brings virt-install
+dnf -y install qemu-img           # brings qemu-img
+dnf -y install cloud-utils        # brings cloud-localds
 
 pip install jinja2 asyncssh
+systemctl enable --now libvirtd
 ```
 
-Also te source code must be deployed in a location where te `qemu` uid as read access (so e.g. not under `/root`)
+Also the source code must be deployed in a location where the `qemu` uid as read access (so e.g. not under `/root`)
 
-### images
+My typical setup is to
+```bash
+cd /var/lib
+git clone git@github.com:parmentelat/vnode-spawner.git
+cd /root
+ln -s /var/lib/vnode-spawner
+```
+
+## images
 
 images - as published by upstream distros - are expected to be pre-fetched
-in `/var/lib/libvirt/boot`; root can run `(cd images; fetch-images)` to perform the actual download
+```
+cd /var/lib/vnode-spawner
+./fetch-images.sh
+```
 
+will store in boot/ the qcow2 files as defined in `images/*.url`
+
+### alternative images
+
+xxx to be documented
 
 ## usage
 
@@ -95,7 +130,8 @@ the same originating MAC address...
 
 so one way forward is to create a local bridge `br0` and attach `eth0` to that bridge
 
-the one-time configuration can be done by running the `install/create-bridge.sh` script
+the one-time configuration can be done by running the `install/create-bridge.sh` script;
+check the IFACE variable though
 
 **please be patient** because this involves `NetworkManager` and `nmcli`, and it
 takes some tens of seconds to settle, and during that time the host remains
