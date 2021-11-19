@@ -66,9 +66,9 @@ DISK_SIZE = '10G'
 RAM_SIZE  = '4096'
 
 # times
-IDLE = 30        # wait that many seconds before trying to ssh
+SSH_IDLE = 30        # wait that many seconds before trying to ssh
 SSH_PERIOD = 5   # how often to retry a ssh
-TIMEOUT = 120    # if a node has not come up after that time, it's deemed KO
+SSH_TIMEOUT = 120    # if a node has not come up after that time, it's deemed KO
 
 VERBOSE = True
 VERBOSE = False
@@ -304,8 +304,8 @@ class Vnode:
         # xxx cloud-localds does not seem to set the hostname
         # on alternative images
         command = f"hostnamectl set-hostname {self.vnode}; cat /etc/os-release"
-        logging.debug(f"{self} idling for {IDLE}s")
-        await asyncio.sleep(IDLE)
+        logging.debug(f"{self} idling for {SSH_IDLE}s")
+        await asyncio.sleep(SSH_IDLE)
         while True:
             try:
                 # already issued by asyncssh INFO
@@ -330,7 +330,7 @@ class Vnode:
         t_install = asyncio.create_task(self.a_start_install(distro, alternative))
         t_ssh = asyncio.create_task(self.a_wait_ssh())
         done, pending = await asyncio.wait(
-            [t_install, t_ssh], timeout=TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
+            [t_install, t_ssh], timeout=SSH_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
         # as the install never finishes, here we have either
         # done == [t_ssh] : all is fine
         # done == [] : oops
