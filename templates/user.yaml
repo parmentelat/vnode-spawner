@@ -2,6 +2,10 @@
 #password: fed0ra
 #chpasswd: { expire: false }
 
+# not sure why but this does not seem to work
+# on an alternative image
+preserve_hostname: false
+prefer_fdqn_over_hostname: false
 hostname: {{vnode}}
 fqdn: {{vnode}}.pl.sophia.inria.fr
 ssh_pwauth: no

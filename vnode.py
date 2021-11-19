@@ -82,6 +82,7 @@ asyncssh.set_log_level(logging.INFO) if VERBOSE else logging.ERROR
 Pretty = str
 
 def shell(*vargs, **kwds):
+    logging.debug(f"shell() {vargs=}")
     return sp.run(*vargs, shell=True, **kwds)      # pylint: disable=subprocess-run-check
 
 
@@ -198,6 +199,8 @@ class Vnode:
         )
         if completed.returncode != 0:
             logging.warning("cloud-localds failed")
+        else:
+            logging.debug(f"cloud-localds returned {completed.returncode}")
         return seed
 
     def virt_install(self, distro: Distro, alternative=None) -> str:
@@ -297,9 +300,10 @@ class Vnode:
         return "UNKNOWN DISTRO"
 
     async def a_wait_ssh(self) -> Pretty:
-        ip = f"192.168.122.1{self.id}"
         ip = str(self)
-        command = "cat /etc/os-release"
+        # xxx cloud-localds does not seem to set the hostname
+        # on alternative images
+        command = f"hostnamectl set-hostname {self.vnode}; cat /etc/os-release"
         logging.debug(f"{self} idling for {IDLE}s")
         await asyncio.sleep(IDLE)
         while True:
