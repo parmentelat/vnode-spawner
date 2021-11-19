@@ -74,7 +74,7 @@ VERBOSE = True
 VERBOSE = False
 
 
-logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 #asyncssh.set_log_level(logging.DEBUG if VERBOSE else logging.INFO)
 asyncssh.set_log_level(logging.INFO) if VERBOSE else logging.ERROR
 
@@ -190,6 +190,7 @@ class Vnode:
 
 
     def create_seed(self, distro):
+        logging.info("creating config seed")
         for yaml in 'meta.yaml', 'user.yaml', 'network.yaml':
             self.create_config_file(yaml, distro)
         seed = self.seed
@@ -300,17 +301,17 @@ class Vnode:
         return "UNKNOWN DISTRO"
 
     async def a_wait_ssh(self) -> Pretty:
-        ip = str(self)
+        hostname = str(self)
         # xxx cloud-localds does not seem to set the hostname
         # on alternative images
-        command = f"hostnamectl set-hostname {self.vnode}; cat /etc/os-release"
+        command = f"hostnamectl set-hostname {hostname}; cat /etc/os-release"
         logging.debug(f"{self} idling for {SSH_IDLE}s")
         await asyncio.sleep(SSH_IDLE)
         while True:
             try:
                 # already issued by asyncssh INFO
-                # logging.debug(f"trying to ssh into {ip}")
-                async with asyncssh.connect(ip, known_hosts=None) as conn:
+                # logging.debug(f"trying to ssh into {hostname}")
+                async with asyncssh.connect(hostname, known_hosts=None) as conn:
                     result = await conn.run(command, check=True)
                     pretty = self.pretty_name(result.stdout)
                     logging.info(f"{self} ssh-OK - {pretty}")
